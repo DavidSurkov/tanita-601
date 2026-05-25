@@ -5,11 +5,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const PROFILE_FOLDER_NAME: &'static str = "SYSTEM";
-const DATA_FOLDER_NAME: &'static str = "DATA";
-const DATA_FILE_NAME_PREFIX: &'static str = "DATA";
-const PROFILE_FILE_NAME_PREFIX: &'static str = "PROF";
-const CSV_EXTENTION_NAME: &'static str = ".CSV";
+const PROFILE_FOLDER_NAME: &str = "SYSTEM";
+const DATA_FOLDER_NAME: &str = "DATA";
+const DATA_FILE_NAME_PREFIX: &str = "DATA";
+const PROFILE_FILE_NAME_PREFIX: &str = "PROF";
+const CSV_EXTENTION_NAME: &str = ".CSV";
 
 #[derive(Debug)]
 pub enum TanitaValidationError {
@@ -82,14 +82,14 @@ impl TanitaParser {
         let system_folder = self
             .require_dir(&self.root_dir, PROFILE_FOLDER_NAME)
             .unwrap();
-        let data_files = self.collect_files(&data_folder);
-        let prof_files = self.collect_files(&system_folder);
+        let data_files = self.collect_files(&data_folder).unwrap();
+        let prof_files = self.collect_files(&system_folder).unwrap();
         let mut tanita_pairs: Vec<TanitaPair> = Vec::with_capacity(prof_files.len());
 
         for (file_num, profile_file) in prof_files {
             if data_files[&file_num].exists() {
                 tanita_pairs.push(TanitaPair {
-                    index: file_num,
+                    index: file_num - 1,
                     profile: profile_file,
                     //TODO: why do i need to clone this one but not profile?
                     data: data_files[&file_num].clone(),
@@ -118,9 +118,9 @@ impl TanitaParser {
             }
             users_records.push(raw_user_record);
         }
-        return users_records;
+        users_records
     }
-    fn require_dir(&self, p: &PathBuf, name: &'static str) -> TanitaResult<PathBuf> {
+    fn require_dir(&self, p: &Path, name: &'static str) -> TanitaResult<PathBuf> {
         let dir = p.join(name);
         if dir.is_dir() {
             Ok(dir)
@@ -142,26 +142,25 @@ impl TanitaParser {
         digits.parse().ok()
     }
 
-    fn collect_files(&self, dir: &Path) -> BTreeMap<usize, PathBuf> {
+    fn collect_files(&self, dir: &Path) -> TanitaResult<BTreeMap<usize, PathBuf>> {
         let mut collecton = BTreeMap::new();
         let read = fs::read_dir(dir);
         match read {
             Ok(read_result) => {
                 for entry in read_result.flatten() {
-                    if let Some(file_name) = entry.file_name().to_str() {
-                        if let Some(idx) = self.get_index(file_name) {
-                            collecton.insert(idx, entry.path());
-                        }
+                    if let Some(file_name) = entry.file_name().to_str()
+                        && let Some(idx) = self.get_index(file_name)
+                    {
+                        collecton.insert(idx, entry.path());
                     }
                 }
             }
-            Err(_) => {
-                // todo!();
-                println!("Folder {:?} is wrong", dir)
-                // TODO: handle wrong folder
+            Err(err) => {
+                eprintln!("Collect file error: {}", err);
+                return Err(TanitaValidationError::NoFilesFound);
             }
         }
-        collecton
+        Ok(collecton)
     }
 }
 
@@ -225,10 +224,10 @@ impl ProfRaw {
                     println!("[Profile] Some extra key: {:?} and value: {:?}", key, value);
                 }
             }
-            key_pointer = key_pointer + 2;
+            key_pointer += 2;
         }
 
-        return profile_raw;
+        profile_raw
     }
 }
 
@@ -357,9 +356,9 @@ impl DataRaw {
                     data_raw.extras.push((key.to_string(), value.to_string()));
                 }
             }
-            key_pointer = key_pointer + 2;
+            key_pointer += 2;
         }
 
-        return data_raw;
+        data_raw
     }
 }

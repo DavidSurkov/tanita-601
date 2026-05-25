@@ -1,8 +1,8 @@
-use std::{path::PathBuf, usize};
+use std::path::PathBuf;
 
 use iced::{
     Length, Task, Theme,
-    widget::{Column, Text, button, scrollable, text},
+    widget::{Column, Text, button, horizontal_rule, scrollable, text},
 };
 
 use rfd::AsyncFileDialog;
@@ -22,21 +22,15 @@ async fn pick_folder() -> Option<PathBuf> {
 
     let path: PathBuf = file_handle.into();
 
-    return Some(path);
+    Some(path)
 }
 
-/// Clean profile info you actually use in the app.
 #[derive(Debug)]
 struct Profile {
-    /// Date of birth (raw string from device; parse later if you adopt a date library).
     birth_date_dmy: Date,
-    /// Gender as an enum (converted from raw `GE`).
     gender: Gender,
-    /// Height in cm.
     height_cm: f32,
-    /// Activity level (device code 1..N).
     activity_level_code: u8,
-    /// Body/athlete mode code (device setting, raw).
     body_type_code: u8,
 }
 
@@ -44,13 +38,13 @@ impl Profile {
     fn from_raw(raw: ProfRaw) -> Option<Profile> {
         let date = Date::from_string(&raw.birth_date_dmy)?;
 
-        return Some(Profile {
+        Some(Profile {
             birth_date_dmy: date,
             body_type_code: raw.body_type_code,
             activity_level_code: raw.activity_level_code,
             height_cm: raw.height_cm,
             gender: Gender::from(raw.gender_code),
-        });
+        })
     }
 }
 
@@ -58,7 +52,6 @@ impl Profile {
 struct Measurement {
     date_time: DateTime,
 
-    // profile echo
     //  gender_code: Gender,
     age_years: u8,
     //  height_cm: f32,
@@ -174,15 +167,17 @@ pub struct Application {
 
 impl Application {
     fn view(&self) -> Column<'_, Message> {
-        let mut col = iced::widget::column![
-            button("Choose [GRAPHV1] in a Tanita folder").on_press(Message::PickFileOrFolder),
-        ]
-        .padding(10)
-        .spacing(10);
+        let mut col = iced::widget::column![].padding(10).spacing(10);
+        if self.measurements.is_empty() {
+            col = col.push(
+                button("Choose [GRAPHV1] in a Tanita folder").on_press(Message::PickFileOrFolder),
+            )
+        }
 
-        if self.measurements.len() != 0 {
+        if !self.measurements.is_empty() {
             let mut tab_titles = iced::widget::row![].spacing(8);
             for user_mes in &self.measurements {
+                // println!("USER_MES_idx: {}", user_mes.index);
                 tab_titles = tab_titles.push(
                     button(text(format!("User {}", user_mes.index + 1)))
                         .on_press(Message::TabSelected(user_mes.index)),
@@ -231,7 +226,7 @@ impl Application {
     }
 
     fn theme(_state: &Application) -> iced::Theme {
-        Theme::CatppuccinMocha
+        Theme::Ferra
     }
 
     fn title(_state: &Application) -> String {
@@ -292,7 +287,7 @@ impl TableBuilder {
         iced::widget::column![title, content]
     }
 
-    fn body(measurements: &Vec<Measurement>) -> Column<'_, Message> {
+    fn body(measurements: &[Measurement]) -> Column<'_, Message> {
         let title = iced::widget::row![
             Self::text_w50("Date and time"),
             Self::text_w50("Age"),
@@ -349,10 +344,22 @@ impl TableBuilder {
                 Self::text_w50(Self::option_into_string(
                     measurement.daily_calorie_intake_kcal
                 )),
-            ];
+            ]
+            .spacing(1);
             col = col.push(r);
+            col = col.push(horizontal_rule(1));
         }
 
-        iced::widget::column![title, scrollable(col)]
+        iced::widget::column![
+            title,
+            horizontal_rule(2),
+            scrollable(col).direction(scrollable::Direction::Vertical(
+                scrollable::Scrollbar::new()
+                    .width(14)
+                    .scroller_width(8)
+                    .spacing(4)
+            )) // .width(Length::Fill)
+               // .height(Length::Fill)
+        ]
     }
 }
